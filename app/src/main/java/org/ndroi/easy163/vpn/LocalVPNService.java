@@ -39,6 +39,13 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * 本地 VPN 服务，基于 Android VpnService 实现网络流量拦截与转发，
+ * 仅代理网易云音乐相关流量（com.netease.cloudmusic 及极速版）。
+ * 通过 VPN 接口读取 IP 包，分发至 UDP/TCP 处理器，再将响应写回设备。
+ *
+ * @author ndroi
+ */
 public class LocalVPNService extends VpnService
 {
     private static final String TAG = LocalVPNService.class.getSimpleName();
@@ -52,11 +59,21 @@ public class LocalVPNService extends VpnService
     private static Boolean isRunning = false;
     private static Context context = null;
 
+    /**
+     * 获取应用全局上下文
+     *
+     * @return 应用的 Context 对象
+     */
     public static Context getContext()
     {
         return context;
     }
 
+    /**
+     * 获取 VPN 服务运行状态
+     *
+     * @return VPN 服务是否正在运行
+     */
     public static Boolean getIsRunning()
     {
         return isRunning;
@@ -81,6 +98,10 @@ public class LocalVPNService extends VpnService
         }
     };
 
+    /**
+     * 初始化 VPN 接口、网络队列、线程池，启动 UDP/TCP 处理器和 VPN 主循环，
+     * 加载 DNS 缓存和本地配置，显示前台通知并广播运行状态。
+     */
     @Override
     public void onCreate()
     {
@@ -106,6 +127,9 @@ public class LocalVPNService extends VpnService
         Log.i(TAG, "Easy163 VPN 启动");
     }
 
+    /**
+     * 创建并显示前台服务通知，点击通知跳转至 MainActivity
+     */
     private void startNotification()
     {
         String notificationId = "easy163";
@@ -132,6 +156,11 @@ public class LocalVPNService extends VpnService
         startForeground(1, notification);
     }
 
+    /**
+     * 配置 VPN 接口参数，设置虚拟 IP 地址和全局路由，
+     * 并通过 {@code addAllowedApplication} 限制仅代理网易云音乐应用流量。
+     * 若配置失败则记录错误日志并退出进程。
+     */
     private void setupVPN()
     {
         try
@@ -168,12 +197,24 @@ public class LocalVPNService extends VpnService
         }
     }
 
+    /**
+     * 返回 START_STICKY 保证服务被系统杀死后自动重启
+     *
+     * @param intent  启动 Intent
+     * @param flags   启动标志
+     * @param startId 启动 ID
+     * @return START_STICKY，确保服务被系统回收后自动重启
+     */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId)
     {
         return START_STICKY;
     }
 
+    /**
+     * 停止线程池、清理资源、更新运行状态，
+     * 并通知 TileService 更新快捷设置磁贴状态。
+     */
     @Override
     public void onDestroy()
     {
@@ -186,6 +227,9 @@ public class LocalVPNService extends VpnService
         Log.i(TAG, "Stopped");
     }
 
+    /**
+     * 清空队列引用并关闭 VPN 接口
+     */
     private void cleanup()
     {
         deviceToNetworkTCPQueue = null;
@@ -194,6 +238,9 @@ public class LocalVPNService extends VpnService
         closeResources(vpnInterface);
     }
 
+    /**
+     * 通过本地广播发送 VPN 服务运行状态，通知 MainActivity 更新 UI
+     */
     private void sendState()
     {
         MainActivity.resetBroadcastReceivedState();
@@ -203,6 +250,11 @@ public class LocalVPNService extends VpnService
         Log.i(TAG, "sendState");
     }
 
+    /**
+     * 关闭可关闭资源，忽略 IO 异常
+     *
+     * @param resources 待关闭的 Closeable 资源数组
+     */
     private static void closeResources(Closeable... resources)
     {
         for (Closeable resource : resources)
@@ -217,6 +269,10 @@ public class LocalVPNService extends VpnService
         }
     }
 
+    /**
+     * VPN 主循环线程，持续从 VPN 接口读取 IP 包，
+     * 根据协议类型分发到 UDP 或 TCP 队列，同时启动 WriteVpnThread 处理下行数据。
+     */
     private static class VPNRunnable implements Runnable
     {
         private static final String TAG = VPNRunnable.class.getSimpleName();
@@ -238,6 +294,9 @@ public class LocalVPNService extends VpnService
             this.networkToDeviceQueue = networkToDeviceQueue;
         }
 
+        /**
+         * 从网络响应队列取数据写回 VPN 接口的线程
+         */
         static class WriteVpnThread implements Runnable
         {
             FileChannel vpnOutput;

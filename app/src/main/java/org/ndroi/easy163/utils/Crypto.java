@@ -13,7 +13,10 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Created by andro on 2020/5/3.
+ * 网易云音乐 eapi 加解密工具，提供 AES 加解密与请求体编解码功能。
+ * 使用 AES/ECB/PKCS7Padding 模式对网易云音乐 API 的请求数据进行加解密处理。
+ *
+ * @author ndroi
  */
 public class Crypto
 {
@@ -42,6 +45,12 @@ public class Crypto
         }
     }
 
+    /**
+     * 使用 AES/ECB 模式对字节数组进行解密。
+     *
+     * @param bytes 待解密的字节数组
+     * @return 解密后的字节数组，解密失败时返回 null
+     */
     public static byte[] aesDecrypt(byte[] bytes)
     {
         byte[] result = null;
@@ -58,6 +67,12 @@ public class Crypto
         return result;
     }
 
+    /**
+     * 使用 AES/ECB 模式对字节数组进行加密。
+     *
+     * @param bytes 待加密的字节数组
+     * @return 加密后的字节数组，加密失败时返回 null
+     */
     public static byte[] aesEncrypt(byte[] bytes)
     {
         byte[] result = null;
@@ -74,6 +89,12 @@ public class Crypto
         return result;
     }
 
+    /**
+     * 将十六进制字符串转换为字节数组。
+     *
+     * @param hexString 十六进制字符串，长度必须为偶数
+     * @return 转换后的字节数组
+     */
     private static byte[] hexStringToByteArray(String hexString)
     {
         int len = hexString.length();
@@ -86,6 +107,12 @@ public class Crypto
         return bytes;
     }
 
+    /**
+     * 将字节数组转换为大写十六进制字符串。
+     *
+     * @param bytes 待转换的字节数组
+     * @return 大写十六进制字符串
+     */
     private static String ByteArrayToHexString(byte[] bytes)
     {
         String hexStr = "";
@@ -101,12 +128,24 @@ public class Crypto
         return hexStr;
     }
 
+    /**
+     * 请求数据封装类，包含解密后的请求路径和 JSON 数据。
+     */
     public static class Request
     {
+        /** 请求路径 */
         public String path;
+        /** 请求的 JSON 数据体 */
         public JSONObject json;
     }
 
+    /**
+     * 解密网易云 eapi 请求体。
+     * 将十六进制编码的加密数据解密，并按分隔符拆分为路径和 JSON 数据。
+     *
+     * @param body 以 "params=" 开头的加密请求体字符串
+     * @return 解密后的 {@link Request} 对象，包含路径和 JSON 数据
+     */
     public static Request decryptRequestBody(String body)
     {
         Request request = new Request();
@@ -119,6 +158,13 @@ public class Crypto
         return request;
     }
 
+    /**
+     * 将请求数据加密为网易云 eapi 格式。
+     * 对路径和 JSON 数据进行拼接、MD5 签名后，AES 加密并转为十六进制编码。
+     *
+     * @param request 待加密的 {@link Request} 对象
+     * @return 格式为 "params=加密十六进制字符串" 的请求体
+     */
     public static String encryptRequestBody(Request request)
     {
         String jsonText = request.json.toString();

@@ -29,12 +29,23 @@ import org.ndroi.easy163.utils.EasyLog;
 import org.ndroi.easy163.vpn.LocalVPNService;
 import static androidx.appcompat.app.AlertDialog.Builder;
 
+/**
+ * 应用主界面 Activity，提供 VPN 开关、侧边栏导航、日志显示等功能。
+ * 实现了侧边栏菜单项点击监听和 VPN 开关按钮状态变化回调。
+ *
+ * @author ndroi
+ */
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, ToggleButton.OnCheckedChangeListener
 {
     private static final int VPN_REQUEST_CODE = 0x0F;
     private ToggleButton toggleButton = null;
     private static boolean isBroadcastReceived = false; // workaround for multi-receive
+
+    /**
+     * 重置广播接收状态标记，允许下一次广播被正常处理。
+     * 用于解决广播多次接收的问题。
+     */
     public static void resetBroadcastReceivedState()
     {
         isBroadcastReceived = false;
@@ -61,6 +72,12 @@ public class MainActivity extends AppCompatActivity
         }
     };
 
+    /**
+     * 初始化界面组件、注册本地广播接收器、同步 VPN 服务状态。
+     * 设置工具栏、侧边栏、VPN 开关按钮及日志显示区域。
+     *
+     * @param savedInstanceState 保存的实例状态，可为 null
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -82,6 +99,9 @@ public class MainActivity extends AppCompatActivity
         syncServiceState();
     }
 
+    /**
+     * Activity 销毁时注销本地广播接收器，防止内存泄漏。
+     */
     @Override
     protected void onDestroy()
     {
@@ -89,6 +109,11 @@ public class MainActivity extends AppCompatActivity
         LocalBroadcastManager.getInstance(this).unregisterReceiver(serviceReceiver);
     }
 
+    /**
+     * 处理返回键事件。
+     * 若侧边栏处于打开状态则关闭侧边栏；
+     * 否则将应用最小化到后台而非退出。
+     */
     @Override
     public void onBackPressed()
     {
@@ -106,13 +131,20 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * 处理侧边栏菜单项点击事件。
+     * 支持的菜单项包括：GitHub 链接、使用说明、免责声明、清除缓存、关于。
+     *
+     * @param item 被点击的菜单项
+     * @return 始终返回 true
+     */
     @Override
     public boolean onNavigationItemSelected(MenuItem item)
     {
         int id = item.getItemId();
         if (id == R.id.nav_github)
         {
-            Uri uri = Uri.parse("https://github.com/ndroi/easy163");
+            Uri uri = Uri.parse("https://github.com/ccclao/easy163");
             Intent intent = new Intent(Intent.ACTION_VIEW, uri);
             startActivity(intent);
         } else if (id == R.id.nav_usage)
@@ -175,6 +207,13 @@ public class MainActivity extends AppCompatActivity
         return true;
     }
 
+    /**
+     * VPN 开关按钮状态变化回调。
+     * 选中时启动 VPN 服务，取消选中时停止 VPN 服务。
+     *
+     * @param buttonView 状态发生变化的按钮视图
+     * @param isChecked  按钮是否被选中
+     */
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked)
     {
@@ -187,6 +226,9 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * 通过本地广播向 VPN 服务发送查询命令，同步当前运行状态到 UI。
+     */
     private void syncServiceState()
     {
         Intent intent = new Intent("control");
@@ -194,6 +236,10 @@ public class MainActivity extends AppCompatActivity
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
+    /**
+     * 请求 VPN 权限并启动 VPN 服务。
+     * 若用户尚未授权，则发起授权请求；已授权则直接启动服务。
+     */
     private void startVPN()
     {
         Intent vpnIntent = VpnService.prepare(this);
@@ -203,6 +249,9 @@ public class MainActivity extends AppCompatActivity
             onActivityResult(VPN_REQUEST_CODE, RESULT_OK, null);
     }
 
+    /**
+     * 通过本地广播发送停止命令来停止 VPN 服务。
+     */
     private void stopVPN()
     {
         Intent intent = new Intent("control");
@@ -211,6 +260,14 @@ public class MainActivity extends AppCompatActivity
         Log.d("stopVPN", "try to stopVPN");
     }
 
+    /**
+     * 处理 Activity 返回的结果。
+     * 当 VPN 权限请求通过时，启动 {@link LocalVPNService}。
+     *
+     * @param requestCode 请求码
+     * @param resultCode  结果码
+     * @param data        返回数据，可为 null
+     */
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data)
     {

@@ -7,7 +7,9 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Representation of an IP Packet
+ * IP 数据包表示，解析和构建 IPv4 数据包，支持 TCP 和 UDP 协议头部
+ *
+ * @author ndroi
  */
 // TODO: Reduce public mutability
 public class Packet
@@ -27,11 +29,20 @@ public class Packet
     public boolean isTCP;
     public boolean isUDP;
 
+    /**
+     * 默认构造函数
+     */
     public Packet()
     {
 
     }
 
+    /**
+     * 从原始字节缓冲区解析数据包
+     *
+     * @param buffer 包含 IP 数据包原始字节的缓冲区
+     * @throws UnknownHostException 当解析的 IP 地址格式无效时抛出
+     */
     public Packet(ByteBuffer buffer) throws UnknownHostException
     {
         this.ip4Header = new IP4Header(buffer);
@@ -59,17 +70,36 @@ public class Packet
         return sb.toString();
     }
 
+    /**
+     * 判断是否为 TCP 数据包
+     *
+     * @return 是 TCP 数据包返回 true
+     */
     public boolean isTCP()
     {
         return isTCP;
     }
 
+    /**
+     * 判断是否为 UDP 数据包
+     *
+     * @return 是 UDP 数据包返回 true
+     */
     public boolean isUDP()
     {
         return isUDP;
     }
 
 
+    /**
+     * 更新 TCP 包的头部字段和校验和
+     *
+     * @param buffer      目标字节缓冲区
+     * @param flags       TCP 标志位
+     * @param sequenceNum 序列号
+     * @param ackNum      确认号
+     * @param payloadSize 载荷大小（字节）
+     */
     public void updateTCPBuffer(ByteBuffer buffer, byte flags, long sequenceNum, long ackNum, int payloadSize)
     {
         buffer.position(0);
@@ -99,6 +129,12 @@ public class Packet
         updateIP4Checksum();
     }
 
+    /**
+     * 更新 UDP 包的头部字段和校验和
+     *
+     * @param buffer      目标字节缓冲区
+     * @param payloadSize 载荷大小（字节）
+     */
     public void updateUDPBuffer(ByteBuffer buffer, int payloadSize)
     {
         buffer.position(0);
@@ -120,6 +156,9 @@ public class Packet
         updateIP4Checksum();
     }
 
+    /**
+     * 计算并更新 IPv4 头部校验和
+     */
     private void updateIP4Checksum()
     {
         ByteBuffer buffer = backingBuffer.duplicate();
@@ -143,6 +182,11 @@ public class Packet
         backingBuffer.putShort(10, (short) sum);
     }
 
+    /**
+     * 计算并更新 TCP 校验和（含伪头部）
+     *
+     * @param payloadSize 载荷大小（字节）
+     */
     private void updateTCPChecksum(int payloadSize)
     {
         int sum = 0;
@@ -179,6 +223,11 @@ public class Packet
         backingBuffer.putShort(IP4_HEADER_SIZE + 16, (short) sum);
     }
 
+    /**
+     * 将头部字段写入缓冲区
+     *
+     * @param buffer 目标字节缓冲区
+     */
     private void fillHeader(ByteBuffer buffer)
     {
         ip4Header.fillHeader(buffer);
@@ -188,6 +237,11 @@ public class Packet
             tcpHeader.fillHeader(buffer);
     }
 
+    /**
+     * IPv4 头部，包含版本、TTL、协议、源/目标地址等字段
+     *
+     * @author ndroi
+     */
     public static class IP4Header
     {
         public byte version;
@@ -208,6 +262,11 @@ public class Packet
 
         public int optionsAndPadding;
 
+        /**
+         * 传输层协议类型枚举
+         *
+         * @author ndroi
+         */
         public enum TransportProtocol
         {
             TCP(6),
@@ -221,6 +280,12 @@ public class Packet
                 this.protocolNumber = protocolNumber;
             }
 
+            /**
+             * 根据协议号获取对应的枚举值
+             *
+             * @param protocolNumber 传输层协议号
+             * @return 对应的传输协议枚举
+             */
             private static TransportProtocol numberToEnum(int protocolNumber)
             {
                 if (protocolNumber == 6)
@@ -231,17 +296,31 @@ public class Packet
                     return Other;
             }
 
+            /**
+             * 获取协议号
+             *
+             * @return 协议号数值
+             */
             public int getNumber()
             {
                 return this.protocolNumber;
             }
         }
 
+        /**
+         * 默认构造函数
+         */
         public IP4Header()
         {
 
         }
 
+        /**
+         * 从字节缓冲区解析 IPv4 头部
+         *
+         * @param buffer 包含 IPv4 头部字节的缓冲区
+         * @throws UnknownHostException 当解析的 IP 地址格式无效时抛出
+         */
         private IP4Header(ByteBuffer buffer) throws UnknownHostException
         {
             byte versionAndIHL = buffer.get();
@@ -269,6 +348,11 @@ public class Packet
             //this.optionsAndPadding = buffer.getInt();
         }
 
+        /**
+         * 将 IPv4 头部字段写入缓冲区
+         *
+         * @param buffer 目标字节缓冲区
+         */
         public void fillHeader(ByteBuffer buffer)
         {
             buffer.put((byte) (this.version << 4 | this.IHL));
@@ -304,6 +388,11 @@ public class Packet
         }
     }
 
+    /**
+     * TCP 头部，包含端口、序列号、标志位等字段
+     *
+     * @author ndroi
+     */
     public static class TCPHeader
     {
         public static final int FIN = 0x01;
@@ -329,6 +418,11 @@ public class Packet
 
         public byte[] optionsAndPadding;
 
+        /**
+         * 从字节缓冲区解析 TCP 头部
+         *
+         * @param buffer 包含 TCP 头部字节的缓冲区
+         */
         public TCPHeader(ByteBuffer buffer)
         {
             this.sourcePort = BitUtils.getUnsignedShort(buffer.getShort());
@@ -353,37 +447,70 @@ public class Packet
             }
         }
 
+        /**
+         * 默认构造函数
+         */
         public TCPHeader()
         {
 
         }
 
+        /**
+         * 判断是否设置了 FIN 标志
+         *
+         * @return 设置了 FIN 返回 true
+         */
         public boolean isFIN()
         {
             return (flags & FIN) == FIN;
         }
 
+        /**
+         * 判断是否设置了 SYN 标志
+         *
+         * @return 设置了 SYN 返回 true
+         */
         public boolean isSYN()
         {
             return (flags & SYN) == SYN;
         }
 
 
+        /**
+         * 判断是否设置了 RST 标志
+         *
+         * @return 设置了 RST 返回 true
+         */
         public boolean isRST()
         {
             return (flags & RST) == RST;
         }
 
+        /**
+         * 判断是否设置了 PSH 标志
+         *
+         * @return 设置了 PSH 返回 true
+         */
         public boolean isPSH()
         {
             return (flags & PSH) == PSH;
         }
 
+        /**
+         * 判断是否设置了 ACK 标志
+         *
+         * @return 设置了 ACK 返回 true
+         */
         public boolean isACK()
         {
             return (flags & ACK) == ACK;
         }
 
+        /**
+         * 判断是否设置了 URG 标志
+         *
+         * @return 设置了 URG 返回 true
+         */
         public boolean isURG()
         {
             return (flags & URG) == URG;
@@ -405,6 +532,12 @@ public class Packet
             buffer.putShort((short) urgentPointer);
         }
 
+        /**
+         * 将标志位转换为可读字符串（如 "SYN ACK"）
+         *
+         * @param flags 标志位字节
+         * @return 标志位的可读字符串表示
+         */
         public static String flagToString(byte flags)
         {
             final StringBuilder sb = new StringBuilder("");
@@ -417,6 +550,11 @@ public class Packet
             return sb.toString();
         }
 
+        /**
+         * 输出简化的 TCP 头部信息（标志位、序列号和确认号）
+         *
+         * @return 简化的 TCP 头部描述字符串
+         */
         public String printSimple()
         {
             final StringBuilder sb = new StringBuilder("");
@@ -454,6 +592,11 @@ public class Packet
         }
     }
 
+    /**
+     * UDP 头部，包含源/目标端口、长度和校验和
+     *
+     * @author ndroi
+     */
     public static class UDPHeader
     {
         public int sourcePort;
@@ -463,11 +606,19 @@ public class Packet
         public int checksum;
 
 
+        /**
+         * 默认构造函数
+         */
         public UDPHeader()
         {
 
         }
 
+        /**
+         * 从字节缓冲区解析 UDP 头部
+         *
+         * @param buffer 包含 UDP 头部字节的缓冲区
+         */
         private UDPHeader(ByteBuffer buffer)
         {
             this.sourcePort = BitUtils.getUnsignedShort(buffer.getShort());
@@ -499,18 +650,41 @@ public class Packet
         }
     }
 
+    /**
+     * 无符号数值转换工具
+     *
+     * @author ndroi
+     */
     private static class BitUtils
     {
+        /**
+         * 将有符号字节转换为无符号短整型
+         *
+         * @param value 有符号字节值
+         * @return 无符号短整型值
+         */
         private static short getUnsignedByte(byte value)
         {
             return (short) (value & 0xFF);
         }
 
+        /**
+         * 将有符号短整型转换为无符号整型
+         *
+         * @param value 有符号短整型值
+         * @return 无符号整型值
+         */
         private static int getUnsignedShort(short value)
         {
             return value & 0xFFFF;
         }
 
+        /**
+         * 将有符号整型转换为无符号长整型
+         *
+         * @param value 有符号整型值
+         * @return 无符号长整型值
+         */
         private static long getUnsignedInt(int value)
         {
             return value & 0xFFFFFFFFL;

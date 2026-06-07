@@ -24,7 +24,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
+ * UDP 流量处理器，管理 UDP 数据报的转发，使用 Selector 实现非阻塞多路复用。
+ * 通过阻塞队列接收 UDP 包并转发至远程服务器，下行数据通过 UdpDownWorker 线程回传设备。
  *
+ * @author ndroi
  */
 public class BioUdpHandler implements Runnable
 {
@@ -37,6 +40,10 @@ public class BioUdpHandler implements Runnable
     private Selector selector;
     private static final int HEADER_SIZE = Packet.IP4_HEADER_SIZE + Packet.UDP_HEADER_SIZE;
 
+    /**
+     * 下行 UDP 数据处理线程，通过 Selector 监听远程 DatagramChannel 的可读事件，
+     * 读取响应数据并通过 sendUdpPack 回传给设备。
+     */
     private static class UdpDownWorker implements Runnable
     {
 
@@ -46,6 +53,14 @@ public class BioUdpHandler implements Runnable
 
         private static AtomicInteger ipId = new AtomicInteger();
 
+        /**
+         * 构建并发送 UDP 响应包，将远程服务器的响应数据封装为 IP/UDP 包发回设备
+         *
+         * @param tunnel UDP 隧道
+         * @param source 源地址（本地地址）
+         * @param data   响应数据
+         * @throws IOException 写入网络设备队列失败时抛出
+         */
         private void sendUdpPack(UdpTunnel tunnel, InetSocketAddress source, byte[] data) throws IOException
         {
             int dataLen = 0;
@@ -72,6 +87,13 @@ public class BioUdpHandler implements Runnable
         }
 
 
+        /**
+         * 构造下行 UDP 数据处理线程
+         *
+         * @param selector            Selector 实例，用于非阻塞多路复用
+         * @param networkToDeviceQueue 网络响应写回设备的阻塞队列
+         * @param tunnelQueue         新建隧道注册队列
+         */
         public UdpDownWorker(Selector selector, BlockingQueue<ByteBuffer> networkToDeviceQueue, BlockingQueue<UdpTunnel> tunnelQueue)
         {
             this.networkToDeviceQueue = networkToDeviceQueue;
@@ -150,6 +172,13 @@ public class BioUdpHandler implements Runnable
         }
     }
 
+    /**
+     * 构造 UDP 流量处理器
+     *
+     * @param queue               设备发出的 UDP 包阻塞队列
+     * @param networkToDeviceQueue 网络响应写回设备的阻塞队列
+     * @param vpnService          VPN 服务实例，用于 socket 保护
+     */
     public BioUdpHandler(BlockingQueue<Packet> queue, BlockingQueue<ByteBuffer> networkToDeviceQueue, VpnService vpnService)
     {
         this.queue = queue;
@@ -163,6 +192,9 @@ public class BioUdpHandler implements Runnable
     Map<String, DatagramChannel> udpSockets = new HashMap();
 
 
+    /**
+     * UDP 隧道封装，包含本地/远程地址和 DatagramChannel
+     */
     private static class UdpTunnel
     {
         InetSocketAddress local;
@@ -171,6 +203,10 @@ public class BioUdpHandler implements Runnable
 
     }
 
+    /**
+     * 主循环，持续从队列取 UDP 包并转发到远程服务器。
+     * 首次通信时创建 DatagramChannel 并注册到 Selector 用于下行监听。
+     */
     @Override
     public void run()
     {

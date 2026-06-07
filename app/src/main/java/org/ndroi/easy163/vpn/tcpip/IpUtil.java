@@ -5,8 +5,21 @@ import org.ndroi.easy163.vpn.util.ByteBufferPool;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
+/**
+ * IP 数据包构建工具，提供 UDP 和 TCP 数据包的快速构建方法
+ *
+ * @author ndroi
+ */
 public class IpUtil
 {
+    /**
+     * 构建 UDP 数据包模板
+     *
+     * @param source 源地址（含 IP 和端口）
+     * @param dest   目标地址（含 IP 和端口）
+     * @param ipId   IP 标识字段
+     * @return 构建好的 UDP 数据包对象
+     */
     public static Packet buildUdpPacket(InetSocketAddress source, InetSocketAddress dest, int ipId)
     {
         Packet packet = new Packet();
@@ -47,6 +60,17 @@ public class IpUtil
         return packet;
     }
 
+    /**
+     * 构建 TCP 数据包模板
+     *
+     * @param source 源地址（含 IP 和端口）
+     * @param dest   目标地址（含 IP 和端口）
+     * @param flag   TCP 标志位（如 SYN、ACK 等的组合）
+     * @param ack    确认号
+     * @param seq    序列号
+     * @param ipId   IP 标识字段
+     * @return 构建好的 TCP 数据包对象
+     */
     public static Packet buildTcpPacket(InetSocketAddress source, InetSocketAddress dest, byte flag, long ack, long seq, int ipId)
     {
         Packet packet = new Packet();

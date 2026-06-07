@@ -20,6 +20,12 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * TCP 流量处理器，管理 TCP 隧道的完整生命周期（三次握手、数据传输、四次挥手），
+ * 支持 HTTP 请求/响应拦截。通过阻塞队列接收 IP 包并分发到对应隧道处理。
+ *
+ * @author ndroi
+ */
 public class BioTcpHandler implements Runnable
 {
     BlockingQueue<Packet> queue;
@@ -28,6 +34,10 @@ public class BioTcpHandler implements Runnable
 
     private static int HEADER_SIZE = Packet.IP4_HEADER_SIZE + Packet.TCP_HEADER_SIZE;
 
+    /**
+     * TCP 隧道状态封装，包含序列号、确认号、连接状态、socket 通道等。
+     * 每条隧道维护独立的双向数据通道和 TCP 状态机。
+     */
     public static class TcpTunnel
     {
         static AtomicInteger tunnelIds = new AtomicInteger(0);
@@ -59,6 +69,13 @@ public class BioTcpHandler implements Runnable
     private VpnService vpnService;
     BlockingQueue<ByteBuffer> networkToDeviceQueue;
 
+    /**
+     * 构造 TCP 流量处理器
+     *
+     * @param queue               设备发出的 TCP 包阻塞队列
+     * @param networkToDeviceQueue 网络响应写回设备的阻塞队列
+     * @param vpnService          VPN 服务实例，用于 socket 保护
+     */
     public BioTcpHandler(BlockingQueue<Packet> queue, BlockingQueue<ByteBuffer> networkToDeviceQueue, VpnService vpnService)
     {
         this.queue = queue;
@@ -66,6 +83,13 @@ public class BioTcpHandler implements Runnable
         this.networkToDeviceQueue = networkToDeviceQueue;
     }
 
+    /**
+     * 将大数据分片发送为多个 TCP 包，每片大小不超过缓冲区最大容量
+     *
+     * @param tunnel 目标 TCP 隧道
+     * @param flag   TCP 标志位
+     * @param data   待发送的数据
+     */
     private static void sendMultiPack(TcpTunnel tunnel, byte flag, byte[] data)
     {
         int unitSize = ByteBufferPool.BUFFER_SIZE - HEADER_SIZE;
@@ -80,6 +104,14 @@ public class BioTcpHandler implements Runnable
         }
     }
 
+    /**
+     * 构建并发送单个 TCP 包，更新隧道序列号。
+     * SYN 和 FIN 标志使序列号加 1，ACK 标志使序列号增加数据长度。
+     *
+     * @param tunnel 目标 TCP 隧道
+     * @param flag   TCP 标志位（SYN/ACK/FIN/RST 的组合）
+     * @param data   待发送的数据，可为 null
+     */
     private static void sendTcpPack(TcpTunnel tunnel, byte flag, byte[] data)
     {
 
@@ -122,11 +154,20 @@ public class BioTcpHandler implements Runnable
         }
     }
 
+    /**
+     * 上行数据处理线程，处理来自设备的 SYN/ACK/FIN/RST 包，
+     * 完成三次握手后连接远程服务器，将数据转发到远程。
+     */
     private static class UpStreamWorker implements Runnable
     {
 
         TcpTunnel tunnel;
 
+        /**
+         * 构造上行数据处理线程
+         *
+         * @param tunnel 关联的 TCP 隧道
+         */
         public UpStreamWorker(TcpTunnel tunnel)
         {
             this.tunnel = tunnel;
@@ -335,11 +376,22 @@ public class BioTcpHandler implements Runnable
         }
     }
 
+    /**
+     * 检查隧道是否已完全关闭（上行和下行通道均不活跃）
+     *
+     * @param tunnel 待检查的 TCP 隧道
+     * @return 如果隧道上下行均关闭则返回 true
+     */
     public static boolean isClosedTunnel(TcpTunnel tunnel)
     {
         return !tunnel.upActive && !tunnel.downActive;
     }
 
+    /**
+     * 关闭下行通道并发送 FIN，若上下行均关闭则将隧道加入关闭队列
+     *
+     * @param tunnel 目标 TCP 隧道
+     */
     private static void closeDownStream(TcpTunnel tunnel)
     {
         synchronized (tunnel)
@@ -370,6 +422,11 @@ public class BioTcpHandler implements Runnable
         }
     }
 
+    /**
+     * 关闭上行通道，shutdown 输出流或关闭 socket
+     *
+     * @param tunnel 目标 TCP 隧道
+     */
     private static void closeUpStream(TcpTunnel tunnel)
     {
         synchronized (tunnel)
@@ -396,6 +453,11 @@ public class BioTcpHandler implements Runnable
         }
     }
 
+    /**
+     * 通过 RST 强制关闭隧道，关闭 socket 并发送 RST 包
+     *
+     * @param tunnel 目标 TCP 隧道
+     */
     private static void closeRst(TcpTunnel tunnel)
     {
         synchronized (tunnel)
@@ -418,10 +480,20 @@ public class BioTcpHandler implements Runnable
         }
     }
 
+    /**
+     * 下行数据处理线程，从远程服务器读取响应数据，
+     * 经过 HookHttp 拦截处理后回传给设备。
+     * 正常关闭时发送 FIN，异常关闭时发送 RST。
+     */
     private static class DownStreamWorker implements Runnable
     {
         TcpTunnel tunnel;
 
+        /**
+         * 构造下行数据处理线程
+         *
+         * @param tunnel 关联的 TCP 隧道
+         */
         public DownStreamWorker(TcpTunnel tunnel)
         {
             this.tunnel = tunnel;
@@ -491,6 +563,12 @@ public class BioTcpHandler implements Runnable
         }
     }
 
+    /**
+     * 初始化新的 TCP 隧道，设置源/目标地址，启动上行处理线程
+     *
+     * @param packet 触发隧道创建的 SYN 包
+     * @return 新创建的 TCP 隧道实例
+     */
     private TcpTunnel initTunnel(Packet packet)
     {
         TcpTunnel tunnel = new TcpTunnel();
@@ -504,8 +582,13 @@ public class BioTcpHandler implements Runnable
         return tunnel;
     }
 
+    /** 隧道关闭消息队列，用于异步通知主循环清理已关闭的隧道 */
     public BlockingQueue<String> tunnelCloseMsgQueue = new ArrayBlockingQueue<>(1024);
 
+    /**
+     * 主循环，持续从队列取包并分发到对应隧道。
+     * 同时处理隧道关闭消息，清理已断开的隧道。
+     */
     @Override
     public void run()
     {

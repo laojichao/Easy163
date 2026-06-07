@@ -9,35 +9,77 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+/**
+ * HTTP 响应解析器，支持流式解析 HTTP 响应的状态行、头部字段、响应体，支持 chunked 传输编码和 GZIP 解压
+ *
+ * @author ndroi
+ */
 public class Response
 {
+    /**
+     * chunked 传输编码的分块解析器
+     *
+     * @author ndroi
+     */
     private static class Chunks
     {
+        /**
+         * 单个数据块
+         *
+         * @author ndroi
+         */
         private static class Chunk
         {
             private byte[] data;
 
-            public Chunk(int size)
+            /**
+         * 构造指定大小的数据块
+         *
+         * @param size 数据块大小（字节）
+         */
+        public Chunk(int size)
             {
                 data = new byte[size];
             }
 
-            public void setData(byte[] bytes)
+            /**
+         * 设置数据块内容
+         *
+         * @param bytes 源字节数组
+         */
+        public void setData(byte[] bytes)
             {
                 setData(bytes, 0, bytes.length);
             }
 
-            public void setData(byte[] bytes, int offset, int length)
+            /**
+         * 设置数据块内容（指定范围）
+         *
+         * @param bytes  源字节数组
+         * @param offset 起始偏移量
+         * @param length 复制长度
+         */
+        public void setData(byte[] bytes, int offset, int length)
             {
                 System.arraycopy(bytes, offset, data, 0, length);
             }
 
-            public byte[] getData()
+            /**
+         * 获取数据块内容
+         *
+         * @return 数据块的字节数组
+         */
+        public byte[] getData()
             {
                 return data;
             }
 
-            public int getSize()
+            /**
+         * 获取数据块大小
+         *
+         * @return 数据块字节数
+         */
+        public int getSize()
             {
                 return data.length;
             }
@@ -80,6 +122,11 @@ public class Response
             chunks.add(new Chunk(length));
         }
 
+        /**
+         * 向 chunked 解析器追加原始字节数据
+         *
+         * @param bytes 待追加的字节数组
+         */
         public void putBytes(byte[] bytes)
         {
             remainingStream.write(bytes, 0, bytes.length);
@@ -129,11 +176,21 @@ public class Response
             }
         }
 
+        /**
+         * 判断 chunked 数据是否已全部接收完毕
+         *
+         * @return 接收完毕返回 true，否则返回 false
+         */
         public boolean finished()
         {
             return status == Status.RECV_OVER;
         }
 
+        /**
+         * 输出所有已接收数据块的合并字节数组
+         *
+         * @return 合并后的完整响应体字节数组
+         */
         public byte[] dump()
         {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -159,6 +216,11 @@ public class Response
         return headerLen != 0;
     }
 
+    /**
+     * 判断响应是否已完整接收（头部和响应体均已接收完毕）
+     *
+     * @return 响应完整接收返回 true，否则返回 false
+     */
     public boolean finished()
     {
         if (headerLen == 0)
@@ -173,57 +235,114 @@ public class Response
         return chunks.finished();
     }
 
+    /**
+     * 向解析器追加原始字节数据
+     *
+     * @param bytes 待追加的字节数组
+     */
     public void putBytes(byte[] bytes)
     {
         putBytes(bytes, 0, bytes.length);
     }
 
+    /**
+     * 获取响应头字段映射
+     *
+     * @return 头部字段的键值对映射
+     */
     public Map<String, String> getHeaderFields()
     {
         return headerFields;
     }
 
+    /**
+     * 获取 HTTP 版本
+     *
+     * @return HTTP 版本字符串（如 HTTP/1.1）
+     */
     public String getVersion()
     {
         return version;
     }
 
+    /**
+     * 设置 HTTP 版本
+     *
+     * @param version 新的 HTTP 版本
+     */
     public void setVersion(String version)
     {
         this.version = version;
     }
 
+    /**
+     * 获取状态码
+     *
+     * @return 状态码字符串（如 200）
+     */
     public String getCode()
     {
         return code;
     }
 
+    /**
+     * 设置状态码
+     *
+     * @param code 新的状态码（如 200、404）
+     */
     public void setCode(String code)
     {
         this.code = code;
     }
 
+    /**
+     * 获取状态描述
+     *
+     * @return 状态描述字符串（如 OK、Not Found）
+     */
     public String getDesc()
     {
         return desc;
     }
 
+    /**
+     * 设置状态描述
+     *
+     * @param desc 新的状态描述（如 OK、Not Found）
+     */
     public void setDesc(String desc)
     {
         this.desc = desc;
     }
 
+    /**
+     * 获取响应体内容
+     *
+     * @return 响应体字节数组，无响应体时返回 null
+     */
     public byte[] getContent()
     {
         return content;
     }
 
+    /**
+     * 设置响应体内容并更新 Content-Length 头
+     *
+     * @param content 新的响应体字节数组
+     */
     public void setContent(byte[] content)
     {
         this.content = content;
         headerFields.put("Content-Length", "" + content.length);
     }
 
+    /**
+     * 向解析器追加指定范围的原始字节数据
+     *
+     * @param bytes  待追加的字节数组
+     * @param offset 起始偏移量
+     * @param length 追加长度
+     */
     public void putBytes(byte[] bytes, int offset, int length)
     {
         if (finished()) return;
@@ -263,6 +382,12 @@ public class Response
         }
     }
 
+    /**
+     * 对 GZIP 压缩的数据进行解压
+     *
+     * @param bytes GZIP 压缩的字节数组
+     * @return 解压后的字节数组，解压失败返回 null
+     */
     private byte[] unzip(byte[] bytes)
     {
         byte[] result = null;
@@ -288,6 +413,9 @@ public class Response
     }
 
 
+    /**
+     * 尝试解码已接收的数据，提取状态行和头部字段，确定传输编码方式
+     */
     private void tryDecode()
     {
         int crlf = checkCRLF();
@@ -306,6 +434,11 @@ public class Response
         }
     }
 
+    /**
+     * 检测头部结束标记（连续的 CRLF）
+     *
+     * @return 头部结束标记的位置索引，未找到则返回 -1
+     */
     private int checkCRLF()
     {
         byte[] bytes = byteArrayOutputStream.toByteArray();
@@ -320,6 +453,9 @@ public class Response
         return -1;
     }
 
+    /**
+     * 解析状态行和头部字段
+     */
     private void decode()
     {
         byte[] bytes = byteArrayOutputStream.toByteArray();
@@ -342,6 +478,9 @@ public class Response
         }
     }
 
+    /**
+     * 将当前响应编码为 HTTP 报文字节，写入内部缓冲区
+     */
     private void encode()
     {
         StringBuffer stringBuffer = new StringBuffer();
@@ -362,6 +501,11 @@ public class Response
         }
     }
 
+    /**
+     * 输出完整的 HTTP 响应字节数组（包含状态行、头部和响应体）
+     *
+     * @return 完整的 HTTP 响应字节数组
+     */
     public byte[] dump()
     {
         encode();

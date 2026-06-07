@@ -8,9 +8,30 @@ import org.ndroi.easy163.utils.Keyword;
 import org.ndroi.easy163.utils.Song;
 import java.util.List;
 
-/* search Song from providers */
+/**
+ * 全网搜索管理器，负责从多个音源提供者中并发搜索并选出最佳音源。
+ * <p>
+ * 搜索流程：遍历所有可用 {@link Provider}，并发收集候选关键词（超时 8 秒），
+ * 通过 {@link Provider#selectCandidateKeywords} 选出最佳音源后获取歌曲信息。
+ * </p>
+ *
+ * @author ndroi
+ * @see Provider
+ * @see Keyword
+ * @see Song
+ */
 public class Search
 {
+    /**
+     * 从多个音源提供者中搜索指定关键词对应的歌曲。
+     * <p>
+     * 并发调用所有 Provider 收集候选关键词，超时时间为 8 秒。
+     * 完成后选择最佳 Provider 获取歌曲。
+     * </p>
+     *
+     * @param targetKeyword 目标搜索关键词
+     * @return 搜索到的歌曲对象，未找到时返回 {@code null}
+     */
     public static Song search(Keyword targetKeyword)
     {
         List<Provider> providers = Provider.getProviders(targetKeyword);

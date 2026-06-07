@@ -14,13 +14,31 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
 
+/**
+ * 酷我音乐音源提供者，通过酷我音乐 API 搜索并获取歌曲播放地址。
+ * <p>
+ * 搜索接口返回候选列表后，通过 antiServer 接口将 musicrid 转换为实际播放 URL。
+ *
+ * @author ndroi
+ */
 public class KuwoMusic extends Provider
 {
+    /**
+     * 构造酷我音乐提供者实例。
+     *
+     * @param targetKeyword 目标歌曲关键字
+     */
     public KuwoMusic(Keyword targetKeyword)
     {
         super("kuwo", targetKeyword);
     }
 
+    /**
+     * 通过酷我搜索 API 收集候选关键字。
+     * <p>
+     * 设置 Referer、csrf 和 Cookie 头以通过酷我的 CSRF 验证，
+     * 解析搜索结果中的歌曲名和歌手名填充候选列表。
+     */
     @Override
     public void collectCandidateKeywords()
     {
@@ -62,6 +80,13 @@ public class KuwoMusic extends Provider
         }
     }
 
+    /**
+     * 获取选中歌曲的播放信息并缓存到本地。
+     * <p>
+     * 从候选 JSON 中提取 musicrid，通过 antiServer 接口转换为播放 URL。
+     *
+     * @return 包含播放信息的 {@link Song} 对象，获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSelectedSong()
     {
@@ -81,6 +106,14 @@ public class KuwoMusic extends Provider
         return song;
     }
 
+    /**
+     * 根据音乐 ID 通过酷我 antiServer 接口获取播放地址。
+     * <p>
+     * 将 musicrid 转换为 MP3 格式的实际播放 URL，返回的 URL 需以 "http" 开头才有效。
+     *
+     * @param jsonObject 包含 "mid"（musicrid）的 JSON 对象
+     * @return 包含播放信息的 {@link Song} 对象，获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSongByJson(JSONObject jsonObject)
     {

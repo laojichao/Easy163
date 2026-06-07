@@ -14,13 +14,30 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
+/**
+ * 酷狗音乐音源提供者，通过酷狗音乐 API 搜索并获取歌曲播放地址。
+ * <p>
+ * 搜索接口返回候选列表后，使用 HQFileHash 通过酷狗 CDN 获取高品质音频。
+ *
+ * @author ndroi
+ */
 public class KugouMusic extends Provider
 {
+    /**
+     * 构造酷狗音乐提供者实例。
+     *
+     * @param targetKeyword 目标歌曲关键字
+     */
     public KugouMusic(Keyword targetKeyword)
     {
         super("kugou", targetKeyword);
     }
 
+    /**
+     * 通过酷狗搜索 API 收集候选关键字。
+     * <p>
+     * 解析搜索结果中的歌曲名和歌手名，填充候选列表和对应的 JSON 对象。
+     */
     @Override
     public void collectCandidateKeywords()
     {
@@ -63,6 +80,13 @@ public class KugouMusic extends Provider
         }
     }
 
+    /**
+     * 获取选中歌曲的播放信息并缓存到本地。
+     * <p>
+     * 使用 HQFileHash 作为音乐标识，通过酷狗 CDN 接口获取播放地址。
+     *
+     * @return 包含播放信息的 {@link Song} 对象，获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSelectedSong()
     {
@@ -83,6 +107,15 @@ public class KugouMusic extends Provider
         return song;
     }
 
+    /**
+     * 根据音乐 ID 通过酷狗 CDN 接口获取播放地址。
+     * <p>
+     * 使用 MD5(mId + "kgcloudv2") 生成签名 key，请求酷狗 CDN 获取播放 URL、
+     * 码率、文件大小和 MD5 信息。
+     *
+     * @param jsonObject 包含 "mid"（HQFileHash）的 JSON 对象
+     * @return 包含播放信息的 {@link Song} 对象，获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSongByJson(JSONObject jsonObject)
     {

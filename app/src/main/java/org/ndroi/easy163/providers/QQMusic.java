@@ -10,13 +10,31 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+/**
+ * QQ 音乐音源提供者，通过 QQ 音乐 API 搜索并获取歌曲播放地址。
+ * <p>
+ * 搜索接口返回候选列表后，通过 vkey 机制获取实际播放 URL，自动跳过付费歌曲和不可用歌曲。
+ *
+ * @author ndroi
+ */
 public class QQMusic extends Provider
 {
+    /**
+     * 构造 QQ 音乐提供者实例。
+     *
+     * @param targetKeyword 目标歌曲关键字
+     */
     public QQMusic(Keyword targetKeyword)
     {
         super("qq", targetKeyword);
     }
 
+    /**
+     * 通过 QQ 音乐搜索 API 收集候选关键字。
+     * <p>
+     * 解析搜索结果，自动跳过付费歌曲（pay_play != 0）、不可用歌曲（fnote == 4002）
+     * 以及无有效音频文件的歌曲。
+     */
     @Override
     public void collectCandidateKeywords()
     {
@@ -81,6 +99,13 @@ public class QQMusic extends Provider
         }
     }
 
+    /**
+     * 获取选中歌曲的播放信息并缓存到本地。
+     * <p>
+     * 从候选 JSON 中提取 mid 和 media_mid，通过 vkey 机制获取实际播放 URL。
+     *
+     * @return 包含播放信息的 {@link Song} 对象，获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSelectedSong()
     {
@@ -102,6 +127,15 @@ public class QQMusic extends Provider
         return song;
     }
 
+    /**
+     * 根据音乐 ID 通过 QQ 音乐 vkey 机制获取播放地址。
+     * <p>
+     * 使用 mid 和 media_mid 构建文件名，通过 musicu.fcg 接口获取 vkey，
+     * 拼接完整的 CDN 播放 URL 后调用 {@code generateSong} 获取元信息。
+     *
+     * @param jsonObject 包含 "mid" 和 "media_mid" 的 JSON 对象
+     * @return 包含播放信息的 {@link Song} 对象，获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSongByJson(JSONObject jsonObject)
     {

@@ -17,7 +17,11 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Created by andro on 2020/5/6.
+ * 咪咕音乐 API 加密工具，基于 AES-256-CBC 加密请求参数。
+ * <p>
+ * 通过密码和盐值派生 AES 密钥与 IV，加密后的数据以 Base64 编码拼接为查询字符串。
+ *
+ * @author ndroi
  */
 public class MiguCrypto
 {
@@ -28,6 +32,12 @@ public class MiguCrypto
             "0bSjZwkY61kY0EIvDNsEZ9TbqFCiy25RXb%2BaLWgcRGE%3D";
     private static Cipher aesCipher = null;
 
+    /**
+     * 通过密码和盐值派生 AES-256 密钥和 IV 并初始化加密器。
+     * <p>
+     * 使用 MD5 迭代哈希（类似 OpenSSL EVP_BytesToKey）从 password + salt
+     * 派生 32 字节密钥和 16 字节 IV，初始化 AES/CBC/PKCS5Padding 加密器。
+     */
     private static void initAes()
     {
         int keySize = 256 / 8;
@@ -82,6 +92,15 @@ public class MiguCrypto
         }
     }
 
+    /**
+     * 加密请求参数并返回包含密文和密钥的查询字符串。
+     * <p>
+     * 使用 AES-256-CBC 加密输入文本，密文前拼接 "Salted__" + salt 头部，
+     * Base64 编码后与预置密钥拼接为查询字符串。
+     *
+     * @param text 待加密的请求参数文本
+     * @return 格式为 "data={密文}&secKey={密钥}" 的查询字符串，加密失败时返回 {@code null}
+     */
     public static String Encrypt(String text)
     {
         if (aesCipher == null)

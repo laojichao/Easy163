@@ -16,13 +16,31 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 咪咕音乐音源提供者，通过咪咕音乐 API 搜索并获取歌曲播放地址，支持并发请求不同音质。
+ * <p>
+ * 搜索接口使用加密参数请求，并发获取 type=2（高品质）和 type=1（标准品质）两种音质，
+ * 优先返回高品质音源。
+ *
+ * @author ndroi
+ */
 public class MiguMusic extends Provider
 {
+    /**
+     * 构造咪咕音乐提供者实例。
+     *
+     * @param targetKeyword 目标歌曲关键字
+     */
     public MiguMusic(Keyword targetKeyword)
     {
         super("migu", targetKeyword);
     }
 
+    /**
+     * 设置咪咕音乐 API 请求所需的 HTTP 头。
+     *
+     * @param connection 待设置请求头的 HTTP 连接
+     */
     private void setHttpHeader(HttpURLConnection connection)
     {
         connection.setRequestProperty("origin", "https://music.migu.cn/");
@@ -30,6 +48,11 @@ public class MiguMusic extends Provider
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36");
     }
 
+    /**
+     * 通过咪咕搜索 API 收集候选关键字。
+     * <p>
+     * 设置咪咕特有的 HTTP 头后请求搜索接口，解析结果中的歌曲名和歌手名填充候选列表。
+     */
     @Override
     public void collectCandidateKeywords()
     {
@@ -70,6 +93,15 @@ public class MiguMusic extends Provider
         }
     }
 
+    /**
+     * 并发请求指定音质类型的播放地址。
+     * <p>
+     * 使用 {@link MiguCrypto} 加密请求参数，成功获取播放 URL 后存入 results 映射表。
+     *
+     * @param mId 歌曲版权 ID（copyrightId）
+     * @param type 音质类型（"1" 为标准品质，"2" 为高品质）
+     * @param results 线程安全的结果映射表，键为音质类型，值为播放 URL
+     */
     private void requestSongUrl(String mId, String type, Map<String, String> results)
     {
         String url = "https://music.migu.cn/v3/api/music/audioPlayer/getPlayInfo?dataType=2&";
@@ -111,6 +143,13 @@ public class MiguMusic extends Provider
         }
     }
 
+    /**
+     * 获取选中歌曲的播放信息并缓存到本地。
+     * <p>
+     * 从候选 JSON 中提取 copyrightId，通过并发请求获取不同音质的播放地址。
+     *
+     * @return 包含播放信息的 {@link Song} 对象，获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSelectedSong()
     {
@@ -130,6 +169,14 @@ public class MiguMusic extends Provider
         return song;
     }
 
+    /**
+     * 并发请求不同音质，优先返回高品质音源。
+     * <p>
+     * 同时请求 type=2（高品质）和 type=1（标准品质），优先使用 type=2 的结果。
+     *
+     * @param jsonObject 包含 "mid"（copyrightId）的 JSON 对象
+     * @return 包含播放信息的 {@link Song} 对象，所有音质均获取失败时返回 {@code null}
+     */
     @Override
     public Song fetchSongByJson(JSONObject jsonObject)
     {
